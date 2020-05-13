@@ -33,7 +33,7 @@ def color_click(event, x, y, flags, param):
 # C:/Users/Owner/Downloads/c2c_dog.jpg
 # C:/Users/Owner/Downloads/c2c_paw.jpg
 # C:/Users/Owner/Downloads/c2c_owl.jpg
-src = "C:/Users/Owner/Downloads/stitchfiddle_image.png"
+src = "C:/Users/Owner/Downloads/c2c_dog.jpg"
 im = cv2.imread(src)
 cv2.imshow("Image", im)
 
@@ -76,9 +76,9 @@ for color in target_colors:
             old_G = blurred[i, j][1]
             old_R = blurred[i, j][2]
 
-            if (target_colors[color][0]-5 <= old_B <= target_colors[color][0]+5) \
+            if (target_colors[color][2]-5 <= old_B <= target_colors[color][2]+5) \
                     and (target_colors[color][1]-5 <= old_G <= target_colors[color][1]+5) \
-                    and (target_colors[color][2]-5 <= old_R <= target_colors[color][2]+5):
+                    and (target_colors[color][0]-5 <= old_R <= target_colors[color][0]+5):
                 new_B = 100
                 new_G = 100
                 new_R = 100
@@ -110,9 +110,9 @@ for c in cnts:
 
     # determining which color the contour is based on the original image colors that were stored
     for color in target_colors:
-        if (target_colors[color][0] - 5 <= im[cY, cX][0] <= target_colors[color][0] + 5) \
+        if (target_colors[color][0] - 5 <= im[cY, cX][2] <= target_colors[color][0] + 5) \
                 and (target_colors[color][1] - 5 <= im[cY, cX][1] <= target_colors[color][1] + 5) \
-                and (target_colors[color][2] - 5 <= im[cY, cX][2] <= target_colors[color][2] + 5):
+                and (target_colors[color][2] - 5 <= im[cY, cX][0] <= target_colors[color][2] + 5):
             color_list.append(color)
             # print(cY, cX, im[cY, cX], color)
 
