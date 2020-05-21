@@ -18,22 +18,29 @@ def color_click(event, x, y, flags, param):
     global click_count
     if event == cv2.EVENT_LBUTTONDOWN:
         click_count += 1
-        key = "color" + str(click_count)
-        red = im[y, x, 2]
-        blue = im[y, x, 0]
-        green = im[y, x, 1]
-        print("Clicked Values:" + str(red) + "," + str(green) + "," + str(blue))
-        target_colors[key].append(red)
-        target_colors[key].append(green)
-        target_colors[key].append(blue)
+
+        block_im = cropped[y - 5:y + 5, x - 5:x + 5]
+        # checking that we have not exceeded the specified number of colors
+        if click_count <= len(target_colors):
+            # taking the mean pixel color within the captured block
+            block_mean = cv2.mean(block_im)
+            print("click count:", click_count)
+            # print("block_mean =", block_mean)
+            key = "color" + str(click_count)
+            red = round(block_mean[2])
+            blue = round(block_mean[0])
+            green = round(block_mean[1])
+            print("Mean Values:" + str(red) + "," + str(green) + "," + str(blue))
+            target_colors[key].append(red)
+            target_colors[key].append(green)
+            target_colors[key].append(blue)
 
 
-# C:/Users/Owner/Downloads/shapes_and_colors.jpg
-# C:/Users/Owner/Downloads/stitchfiddle_image.png
-# C:/Users/Owner/Downloads/c2c_dog.jpg
-# C:/Users/Owner/Downloads/c2c_paw.jpg
-# C:/Users/Owner/Downloads/c2c_owl.jpg
-src = "C:/Users/Owner/Downloads/c2c_dog.jpg"
+# stitchfiddle_image.png
+# c2c_dog.jpg
+# c2c_paw.jpg
+# c2c_owl.jpg
+src = "stitchfiddle_image.png"
 im = cv2.imread(src)
 cv2.imshow("Image", im)
 
@@ -52,10 +59,7 @@ cv2.waitKey(0)
 print(crop_coords)
 cropped = im[crop_coords[0][0]:crop_coords[1][0], crop_coords[0][1]:crop_coords[1][1]].copy()
 
-# smoothing cropped image before asking for user input to capture all colors needed in chart
-blurred = cv2.bilateralFilter(cropped, 10, 50, 50)
-
-cv2.imshow("Bilateral", blurred)
+cv2.imshow("Cropped", cropped)
 print("How many colors are in this chart?")
 color_count = int(input())
 for i in range(0,color_count):
@@ -64,9 +68,12 @@ for i in range(0,color_count):
 
 print("Click on one block for each individual color. Close image when complete")
 click_count = 0
-cv2.setMouseCallback("Bilateral", color_click)
+cv2.setMouseCallback("Cropped", color_click)
 cv2.waitKey(0)
 print(target_colors)
+
+# smoothing cropped image before asking for user input to capture all colors needed in chart
+blurred = cv2.bilateralFilter(cropped, 10, 50, 50)
 
 rows, columns, channels = blurred.shape
 for color in target_colors:
@@ -76,9 +83,9 @@ for color in target_colors:
             old_G = blurred[i, j][1]
             old_R = blurred[i, j][2]
 
-            if (target_colors[color][2]-5 <= old_B <= target_colors[color][2]+5) \
-                    and (target_colors[color][1]-5 <= old_G <= target_colors[color][1]+5) \
-                    and (target_colors[color][0]-5 <= old_R <= target_colors[color][0]+5):
+            if (target_colors[color][2]-10 <= old_B <= target_colors[color][2]+10) \
+                    and (target_colors[color][1]-10 <= old_G <= target_colors[color][1]+10) \
+                    and (target_colors[color][0]-10 <= old_R <= target_colors[color][0]+10):
                 new_B = 100
                 new_G = 100
                 new_R = 100
@@ -110,15 +117,17 @@ for c in cnts:
 
     # determining which color the contour is based on the original image colors that were stored
     for color in target_colors:
-        if (target_colors[color][0] - 5 <= im[cY, cX][2] <= target_colors[color][0] + 5) \
-                and (target_colors[color][1] - 5 <= im[cY, cX][1] <= target_colors[color][1] + 5) \
-                and (target_colors[color][2] - 5 <= im[cY, cX][0] <= target_colors[color][2] + 5):
+        if (target_colors[color][0] - 10 <= im[cY, cX][2] <= target_colors[color][0] + 10) \
+                and (target_colors[color][1] - 10 <= im[cY, cX][1] <= target_colors[color][1] + 10) \
+                and (target_colors[color][2] - 10 <= im[cY, cX][0] <= target_colors[color][2] + 10):
             color_list.append(color)
-            # print(cY, cX, im[cY, cX], color)
+            print(cY, cX, im[cY, cX], color)
+        else:
+            print(im[cY, cX])
 
     # draw the center of the shape on the image
     cv2.circle(im, (cX, cY), 1, (0, 255, 0), -1)
-    cv2.imshow("Image", im)
+    cv2.imshow("Final", im)
     cv2.waitKey(5)
 
 # print(color_list)
