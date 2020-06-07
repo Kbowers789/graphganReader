@@ -1,5 +1,4 @@
 import sys
-import math
 import cv2
 import imutils
 import numpy as np
@@ -14,33 +13,26 @@ def crop_click(event, x, y, flags, param):
         crop_coords.append([y, x])
 
 
-def color_click(event, x, y, flags, param):
+def find_color(roi):
     global click_count
-    if event == cv2.EVENT_LBUTTONDOWN:
-        click_count += 1
-
-        block_im = cropped[y - 5:y + 5, x - 5:x + 5]
-        # checking that we have not exceeded the specified number of colors
-        if click_count <= len(target_colors):
-            # taking the mean pixel color within the captured block
-            block_mean = cv2.mean(block_im)
-            print("click count:", click_count)
-            # print("block_mean =", block_mean)
-            key = "color" + str(click_count)
-            red = round(block_mean[2])
-            blue = round(block_mean[0])
-            green = round(block_mean[1])
-            print("Mean Values:" + str(red) + "," + str(green) + "," + str(blue))
-            target_colors[key].append(red)
-            target_colors[key].append(green)
-            target_colors[key].append(blue)
+    # checking that we have not exceeded the specified number of colors
+    if click_count <= len(target_colors):
+        print("click count:", click_count)
+        key = "color" + str(click_count)
+        block_mean = cv2.mean(roi)
+        print("block_mean =", block_mean)
+        mean_hue = round(block_mean[0])
+        mean_sat = round(block_mean[1])
+        mean_val = round(block_mean[2])
+        print("Mean Values:" + str(mean_hue) + "," + str(mean_sat) + "," + str(mean_val))
+        target_colors[key] = [mean_hue, mean_sat, mean_val]
 
 
 # stitchfiddle_image.png
 # c2c_dog.jpg
 # c2c_paw.jpg
 # c2c_owl.jpg
-src = "stitchfiddle_image.png"
+src = "c2c_dog.jpg"
 im = cv2.imread(src)
 cv2.imshow("Image", im)
 
@@ -59,37 +51,45 @@ cv2.waitKey(0)
 print(crop_coords)
 cropped = im[crop_coords[0][0]:crop_coords[1][0], crop_coords[0][1]:crop_coords[1][1]].copy()
 
-cv2.imshow("Cropped", cropped)
+# smoothing cropped image before asking for user input to capture all colors needed in chart
+blurred = cv2.bilateralFilter(cropped, 10, 50, 50)
+
+# creating a copy with hsv colors for masking purposes
+hsv_copy = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+
+cv2.imshow("Blurred", blurred)
+
 print("How many colors are in this chart?")
 color_count = int(input())
 for i in range(0,color_count):
     key_name = "color"+ str(i+1)
     target_colors[key_name] = []
 
-print("Click on one block for each individual color. Close image when complete")
-click_count = 0
-cv2.setMouseCallback("Cropped", color_click)
+# grabbing each color from the blurred image
+print("Select on one block for each individual color. Hit Enter once a block is selected.")
+while click_count < color_count:
+    click_count += 1
+    new_color = cv2.selectROI("Blurred", blurred, fromCenter=False,showCrosshair=False)
+    color_crop = hsv_copy[int(new_color[1]):int(new_color[1] + new_color[3]),
+                 int(new_color[0]):int(new_color[0] + new_color[2])]
+    find_color(color_crop)
+
 cv2.waitKey(0)
 print(target_colors)
-
-# smoothing cropped image before asking for user input to capture all colors needed in chart
-blurred = cv2.bilateralFilter(cropped, 10, 50, 50)
 
 rows, columns, channels = blurred.shape
 for color in target_colors:
     for i in range(0, rows):
         for j in range(0, columns):
-            old_B = blurred[i, j][0]
-            old_G = blurred[i, j][1]
-            old_R = blurred[i, j][2]
+            old_h = hsv_copy[i, j][0]
+            old_s = hsv_copy[i, j][1]
+            old_v = hsv_copy[i, j][2]
 
-            if (target_colors[color][2]-10 <= old_B <= target_colors[color][2]+10) \
-                    and (target_colors[color][1]-10 <= old_G <= target_colors[color][1]+10) \
-                    and (target_colors[color][0]-10 <= old_R <= target_colors[color][0]+10):
-                new_B = 100
-                new_G = 100
-                new_R = 100
-                blurred[i, j] = [new_B, new_G, new_R]
+            if target_colors[color][0] - 5 <= old_h <= target_colors[color][0] + 5:
+                new_h = 0
+                new_s = 0
+                new_v = 35
+                blurred[i, j] = [new_h, new_s, new_v]
 
 cv2.imshow("recolored", blurred)
 cv2.waitKey(0)
@@ -117,9 +117,7 @@ for c in cnts:
 
     # determining which color the contour is based on the original image colors that were stored
     for color in target_colors:
-        if (target_colors[color][0] - 10 <= im[cY, cX][2] <= target_colors[color][0] + 10) \
-                and (target_colors[color][1] - 10 <= im[cY, cX][1] <= target_colors[color][1] + 10) \
-                and (target_colors[color][2] - 10 <= im[cY, cX][0] <= target_colors[color][2] + 10):
+        if target_colors[color][0]-5 <= im[cY, cX][2] <= target_colors[color][0]+5:
             color_list.append(color)
             print(cY, cX, im[cY, cX], color)
         else:

@@ -3,6 +3,8 @@ Program to take in a "graphghan" chart (grid with colored boxes) and process the
 
 These diagonals are then turned into the pattern rows, and are printed out in plain text.
 
+This project contains 5 test images, with varying color, shapes, and image quality to see what works best for as many as possible.
+
 ## Test Image details:
 
 ####c2c_paw.jpg:
@@ -24,4 +26,3 @@ These diagonals are then turned into the pattern rows, and are printed out in pl
    Chart size: 41 rows x 41 columns
    
    Colors (7): Tan, Teal, Blue, Blue-Grey, White, Black, and Orange
- #
