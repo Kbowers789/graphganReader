@@ -17,6 +17,11 @@ This project contains 5 test images, with varying color, shapes, and image quali
    
    Colors (2): Grey and Dark Red
 
+####CoffeeGranny_Graph.jpg:
+   Chart size: 12 rows x 12 columns
+   
+   Colors (3): Dark Browm, Light  Brown, and White
+
 ####c2c_dog.jpg:
    Chart size: 25 rows x 25 columns
    
