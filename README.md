@@ -1,7 +1,9 @@
 # graphganReader
 Program to take in a "graphghan" chart (grid with colored boxes) and process the image in order to read the chart in alternating diagonals.
 
-These diagonals are then turned into the pattern rows, and are printed out in plain text.
+These diagonals are then turned into the pattern rows, and are printed out in plain text, as shown in the example below:
+
+![Example Graphghan Conversion](example.png)
 
 This project contains 5 test images, with varying color, shapes, and image quality to see what works best for as many as possible.
 
