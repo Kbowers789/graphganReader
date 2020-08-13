@@ -6,6 +6,7 @@ import numpy as np
 target_colors = {}
 crop_coords = []
 click_count = 0
+all_cnts = []
 
 
 def crop_click(event, x, y, flags, param):
@@ -13,26 +14,59 @@ def crop_click(event, x, y, flags, param):
         crop_coords.append([y, x])
 
 
-def find_color(roi):
+def color_click(event, x, y, flags, param):
     global click_count
-    # checking that we have not exceeded the specified number of colors
-    if click_count <= len(target_colors):
-        print("click count:", click_count)
-        key = "color" + str(click_count)
-        block_mean = cv2.mean(roi)
-        print("block_mean =", block_mean)
-        mean_hue = round(block_mean[0])
-        mean_sat = round(block_mean[1])
-        mean_val = round(block_mean[2])
-        print("Mean Values:" + str(mean_hue) + "," + str(mean_sat) + "," + str(mean_val))
-        target_colors[key] = [mean_hue, mean_sat, mean_val]
+    if event == cv2.EVENT_LBUTTONDOWN:
+        click_count += 1
+        # checking that we have not exceeded the specified number of colors
+        if click_count <= len(target_colors):
+            print("click count:", click_count)
+            key = "color" + str(click_count)
+            print("Color:", blurred[y, x])
+            target_colors[key] = blurred[y, x]
 
+def get_mask_contours(name, c, img):
+    global all_cnts
+    # creating bounds for masking based on selected color
+    c_upper_bound = np.array([min(c[0]+8, 255), min(c[1]+8, 255), min(c[2]+8, 255)], np.uint8)
+    c_lower_bound = np.array([max(c[0]-8, 0), max(c[1]-8, 0), max(c[2]-8, 0)], np.uint8)
+    # creating mask
+    m = cv2.inRange(img, c_lower_bound, c_upper_bound)
+    # processing mask to isolate blocks more clearly
+    thresh = cv2.threshold(m, 160, 255, cv2.THRESH_BINARY_INV)[1]
+    # cv2.imshow(name, thresh)
+    kernel = np.ones((3, 3), np.uint8)
+    dilation = cv2.dilate(thresh, kernel, iterations=1)
+    # cv2.imshow(name, dilation)
+    # cv2.waitKey(0)
+    # finding contours of blocks in the thresholded & dilated image
+    cnts = cv2.findContours(dilation.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+    curr_pts = []
+    for c in cnts:
+        # finding the center of the contour
+        M = cv2.moments(c)
+        if M["m10"] == 0 or M["m00"] == 0 or M["m01"] == 0:
+            continue
+
+        cX = int(M["m10"] / M["m00"])
+        cY = int(M["m01"] / M["m00"])
+        # storing center point and current color of each contour (aka block of chart)
+        curr_pts.append({"Color": name, "Point": (cY, cX)})
+
+        cv2.circle(img, (cX, cY), 1, (255, 0, 0), -1)
+        cv2.imshow("Contours", img)
+        cv2.waitKey(5)
+    cv2.waitKey(0)
+    all_cnts.extend(curr_pts[1::])
+    print("all_cnts length =",len(all_cnts))
 
 # stitchfiddle_image.png
 # c2c_dog.jpg
 # c2c_paw.jpg
 # c2c_owl.jpg
-src = "c2c_dog.jpg"
+# CoffeeGranny_Graph.jpg
+src = "CoffeeGranny_Graph.jpg"
 im = cv2.imread(src)
 cv2.imshow("Image", im)
 
@@ -51,13 +85,9 @@ cv2.waitKey(0)
 print(crop_coords)
 cropped = im[crop_coords[0][0]:crop_coords[1][0], crop_coords[0][1]:crop_coords[1][1]].copy()
 
-# smoothing cropped image before asking for user input to capture all colors needed in chart
+# smoothing image to increase more uniform coloring of blocks
 blurred = cv2.bilateralFilter(cropped, 10, 50, 50)
-
-# creating a copy with hsv colors for masking purposes
-hsv_copy = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
-
-cv2.imshow("Blurred", blurred)
+cv2.imshow("Smoothed", blurred)
 
 print("How many colors are in this chart?")
 color_count = int(input())
@@ -66,87 +96,45 @@ for i in range(0,color_count):
     target_colors[key_name] = []
 
 # grabbing each color from the blurred image
-print("Select on one block for each individual color. Hit Enter once a block is selected.")
-while click_count < color_count:
-    click_count += 1
-    new_color = cv2.selectROI("Blurred", blurred, fromCenter=False,showCrosshair=False)
-    color_crop = hsv_copy[int(new_color[1]):int(new_color[1] + new_color[3]),
-                 int(new_color[0]):int(new_color[0] + new_color[2])]
-    find_color(color_crop)
-
+print("Click on one block for each individual color. Close window when finished.")
+cv2.setMouseCallback("Smoothed", color_click)
 cv2.waitKey(0)
 print(target_colors)
 
-rows, columns, channels = blurred.shape
-for color in target_colors:
-    for i in range(0, rows):
-        for j in range(0, columns):
-            old_h = hsv_copy[i, j][0]
-            old_s = hsv_copy[i, j][1]
-            old_v = hsv_copy[i, j][2]
+# creating a masked image for each color
+for color in target_colors.keys():
+    get_mask_contours(color, target_colors[color], blurred.copy())
 
-            if target_colors[color][0] - 5 <= old_h <= target_colors[color][0] + 5:
-                new_h = 0
-                new_s = 0
-                new_v = 35
-                blurred[i, j] = [new_h, new_s, new_v]
+# sorting the list of dictionaries (containing color name as key and contour center point as value)
+# by the y-coord of the point, and then by the x-coord
+all_cnts = sorted(all_cnts, key=lambda p: (p["Point"]))
+color_chart = []
 
-cv2.imshow("recolored", blurred)
-cv2.waitKey(0)
-
-# converting blurred & recolored image to grayscale, then performing a threshold in prep for finding contours
-gray = cv2.cvtColor(blurred, cv2.COLOR_BGR2GRAY)
-thresh = cv2.threshold(gray, 160, 255, cv2.THRESH_BINARY_INV)[1]
-cv2.imshow("thresh", thresh)
-cv2.waitKey(0)
-
-# finding contours in the threshold image
-cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-cnts = imutils.grab_contours(cnts)
-color_list = []
-
-# loop over the contours to find center pixel of each (presumed) block in grid
-for c in cnts:
-    # compute the center of the contour
-    M = cv2.moments(c)
-    if M["m10"] == 0 or M["m00"] == 0 or M["m01"] == 0:
-        continue
-
-    cX = int(M["m10"] / M["m00"]) + crop_coords[0][1]
-    cY = int(M["m01"] / M["m00"]) + crop_coords[0][0]
-
-    # determining which color the contour is based on the original image colors that were stored
-    for color in target_colors:
-        if target_colors[color][0]-5 <= im[cY, cX][2] <= target_colors[color][0]+5:
-            color_list.append(color)
-            print(cY, cX, im[cY, cX], color)
-        else:
-            print(im[cY, cX])
-
-    # draw the center of the shape on the image
-    cv2.circle(im, (cX, cY), 1, (0, 255, 0), -1)
-    cv2.imshow("Final", im)
+# displaying the center of each identified contour (aka block), and storing the respective color name
+for item in all_cnts:
+    color_chart.append(item["Color"])
+    cv2.circle(blurred, (item["Point"][1], item["Point"][0]), 1, (255, 0, 0), -1)
+    cv2.imshow("Final", blurred)
     cv2.waitKey(5)
+cv2.waitKey(0)
 
-# print(color_list)
-color_chart = np.array(color_list)
+color_chart = np.array(color_chart)
 print("expected number of blocks:", chart_y*chart_x)
 print("array shape:", color_chart.shape)
+# checking that our block count is at least lower or equal to the expected number (based on dimensions given by user)
 if color_chart.shape[0] < chart_y*chart_x:
     missing = chart_y*chart_x - color_chart.shape[0]
     for i in range(0, missing):
         color_chart = np.append(color_chart, "XXX")
 if color_chart.shape[0] > chart_y*chart_x:
-    print("error in image processing - missing blocks: program terminating")
+    print("error in image processing - too many blocks: program terminating")
     sys.exit()
 print("image processed fully")
+# reshaping np array to match dimensions of chart, in order to properly read diagonals
 color_chart = np.reshape(color_chart, (chart_y, chart_x))
 print("new array shape:", color_chart.shape)
-# row_count = chart_y + chart_x - math.gcd(chart_y, chart_x)
-# print("Number of rows = ", row_count)
 color_chart = np.flipud(color_chart)
-
-rows = {}
+rows = dict()
 y = chart_y - 1
 x = 1
 curr_row = 1
