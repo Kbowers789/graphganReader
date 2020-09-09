@@ -105,9 +105,28 @@ print(target_colors)
 for color in target_colors.keys():
     get_mask_contours(color, target_colors[color], blurred.copy())
 
-# sorting the list of dictionaries (containing color name as key and contour center point as value)
-# by the y-coord of the point, and then by the x-coord
-all_cnts = sorted(all_cnts, key=lambda p: (p["Point"]))
+# normalizing the list of dictionaries' (containing color name and center points as keys) y-coords
+# by rows to avoid contour differences affecting order of points
+all_cnts = sorted(all_cnts, key=lambda p: (p["Point"][0]))
+for i in range(chart_y):
+    x1 = i*chart_x
+    y_vals = [p["Point"][0] for p in all_cnts[x1:x1+chart_x]]
+    avg = sum(y_vals) // len(y_vals)
+    for j in all_cnts[x1:x1+chart_x]:
+        j["Point"] = (avg, j["Point"][1])
+
+# normalizing the list of dictionaries' x-coords
+# by column to avoid contour differences affecting order of points
+all_cnts = sorted(all_cnts, key=lambda p: (p["Point"][1]))
+for i in range(chart_x):
+    y1 = i*chart_y
+    x_vals = [p["Point"][1] for p in all_cnts[y1:y1+chart_y]]
+    avg = sum(x_vals) // len(x_vals)
+    for j in all_cnts[y1:y1+chart_y]:
+        j["Point"] = (j["Point"][0], avg)
+
+# re-sorting the list of dictionaries by the y-coord of the point, and then by the x-coord
+all_cnts = sorted(all_cnts, key=lambda p: (p["Point"][0]))
 color_chart = []
 
 # displaying the center of each identified contour (aka block), and storing the respective color name
@@ -121,6 +140,7 @@ cv2.waitKey(0)
 color_chart = np.array(color_chart)
 print("expected number of blocks:", chart_y*chart_x)
 print("array shape:", color_chart.shape)
+
 # checking that our block count is at least lower or equal to the expected number (based on dimensions given by user)
 if color_chart.shape[0] < chart_y*chart_x:
     missing = chart_y*chart_x - color_chart.shape[0]
@@ -130,10 +150,13 @@ if color_chart.shape[0] > chart_y*chart_x:
     print("error in image processing - too many blocks: program terminating")
     sys.exit()
 print("image processed fully")
+
 # reshaping np array to match dimensions of chart, in order to properly read diagonals
 color_chart = np.reshape(color_chart, (chart_y, chart_x))
 print("new array shape:", color_chart.shape)
-color_chart = np.flipud(color_chart)
+print("color_chart:", color_chart)
+color_chart = np.rot90(color_chart, k=-1, axes=(0, 1))
+
 rows = dict()
 y = chart_y - 1
 x = 1
@@ -143,7 +166,7 @@ side = "inc"
 
 while reading:
     row_key = "Row " + str(curr_row)
-    if x == chart_x:
+    if x > chart_x:
         reading = False
         continue
 
@@ -152,7 +175,7 @@ while reading:
         side = "dec"
 
     if side == "inc":
-        blocks = np.diag(color_chart,k=-y)
+        blocks = np.diag(color_chart, k=-y)
         y -= 1
 
     if side == "dec":
