@@ -54,10 +54,10 @@ def get_mask_contours(name, c, img):
         # storing center point and current color of each contour (aka block of chart)
         curr_pts.append({"Color": name, "Point": (cY, cX)})
 
-        cv2.circle(img, (cX, cY), 1, (255, 0, 0), -1)
-        cv2.imshow("Contours", img)
-        cv2.waitKey(5)
-    cv2.waitKey(0)
+        # cv2.circle(img, (cX, cY), 1, (255, 0, 0), -1)
+        # cv2.imshow("Contours", img)
+        # cv2.waitKey(5)
+    # cv2.waitKey(0)
     all_cnts.extend(curr_pts[1::])
     print("all_cnts length =",len(all_cnts))
 
@@ -66,7 +66,7 @@ def get_mask_contours(name, c, img):
 # c2c_paw.jpg
 # c2c_owl.jpg
 # CoffeeGranny_Graph.jpg
-src = "CoffeeGranny_Graph.jpg"
+src = "c2c_dog.jpg"
 im = cv2.imread(src)
 cv2.imshow("Image", im)
 
@@ -105,25 +105,58 @@ print(target_colors)
 for color in target_colors.keys():
     get_mask_contours(color, target_colors[color], blurred.copy())
 
+# checking that we have one contour point for each expected "block" based on given dimensions
+if len(all_cnts) > chart_y*chart_x:
+    print("error in image processing - too many blocks: program terminating")
+    sys.exit()
+
 # normalizing the list of dictionaries' (containing color name and center points as keys) y-coords
 # by rows to avoid contour differences affecting order of points
 all_cnts = sorted(all_cnts, key=lambda p: (p["Point"][0]))
 for i in range(chart_y):
-    x1 = i*chart_x
-    y_vals = [p["Point"][0] for p in all_cnts[x1:x1+chart_x]]
-    avg = sum(y_vals) // len(y_vals)
-    for j in all_cnts[x1:x1+chart_x]:
-        j["Point"] = (avg, j["Point"][1])
+    x1 = i * chart_x
+    if x1 + chart_x >= len(all_cnts):
+        temp = all_cnts[x1:]
+    else:
+        temp = all_cnts[x1:x1+chart_x]
+
+    y_vals = [p["Point"][0] for p in temp]
+    if len(y_vals) > 0:
+        avg = sum(y_vals) // len(y_vals)
+        for j in temp:
+            j["Point"] = (avg, j["Point"][1])
 
 # normalizing the list of dictionaries' x-coords
 # by column to avoid contour differences affecting order of points
 all_cnts = sorted(all_cnts, key=lambda p: (p["Point"][1]))
 for i in range(chart_x):
     y1 = i*chart_y
-    x_vals = [p["Point"][1] for p in all_cnts[y1:y1+chart_y]]
-    avg = sum(x_vals) // len(x_vals)
-    for j in all_cnts[y1:y1+chart_y]:
-        j["Point"] = (j["Point"][0], avg)
+    if y1 + chart_y >= len(all_cnts):
+        temp = all_cnts[y1:]
+    else:
+        temp = all_cnts[y1:y1+chart_y]
+
+    x_vals = [p["Point"][1] for p in temp]
+    if len(x_vals) > 0:
+        avg = sum(x_vals) // len(x_vals)
+        for j in temp:
+            j["Point"] = (j["Point"][0], avg)
+
+if len(all_cnts) < chart_y*chart_x:
+    # creating sets of normalized x-coords and y-coords in order to "fill in" any missing points, if necessary
+    y_set = sorted(set(p["Point"][0] for p in all_cnts))
+    x_set = sorted(set(p["Point"][1] for p in all_cnts))
+
+    for yp in y_set:
+        for xp in x_set:
+            # if x-coord, y-coord combo from normalized sets does not already exist in the list of points
+            # it will be added and matched to the closest color in target_colors
+            if not any(p["Point"] == (yp, xp) for p in all_cnts):
+                c_val = blurred[yp, xp]
+                for k, v in target_colors:
+                    if v[0]-8 <= c_val[0] <= [0]+8 and v[1]-8 <= c_val[1] <= [1]+8 and v[2]-8 <= c_val[2] <= [2]+8:
+                        all_cnts.append({"Color": k, "Point": (yp, xp)})
+print("len(all_cnts):", len(all_cnts))
 
 # re-sorting the list of dictionaries by the y-coord of the point, and then by the x-coord
 all_cnts = sorted(all_cnts, key=lambda p: (p["Point"][0]))
@@ -156,17 +189,17 @@ color_chart = np.reshape(color_chart, (chart_y, chart_x))
 print("new array shape:", color_chart.shape)
 print("color_chart:", color_chart)
 color_chart = np.rot90(color_chart, k=-1, axes=(0, 1))
-
+print("rotated color_chart:", color_chart)
 rows = dict()
 y = chart_y - 1
-x = 1
+x = 0
 curr_row = 1
 reading = True
 side = "inc"
 
 while reading:
     row_key = "Row " + str(curr_row)
-    if x > chart_x:
+    if x == chart_x:
         reading = False
         continue
 
